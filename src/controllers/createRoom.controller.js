@@ -47,8 +47,6 @@ export const createRoom = async (req, res, next) => {
 
 
 export const updateRoom = async (req, res, next) => {
-    console.log("Request Body:", req.body);
-    console.log("User updating room:", req.user); // Debugging log
 
     // Ensure req.user and req.user.id are available
     if (!req.user || !req.user.id) {
