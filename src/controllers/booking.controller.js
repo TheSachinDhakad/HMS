@@ -196,43 +196,39 @@ export const updateBookingStatus = async (req, res, next) => {
 };
 
 
-export const updatePaymentStatus = async (req, res, next) => {
-    const { bookingId } = req.params;
-    const { payment_status, transaction_id, payment_method } = req.body;
+// export const updatePaymentStatus = async (req, res, next) => {
+//     const { bookingId } = req.params;
+//     const { payment_status, transaction_id, payment_method } = req.body;
 
-    try {
-        if (req.user.role !== 'admin') {
-            return next(new ApiError(403, "You are not authorized to update payment status"));
-        }
+//     try {
+//         if (req.user.role !== 'admin') {
+//             return next(new ApiError(403, "You are not authorized to update payment status"));
+//         }
 
-        const booking = await Booking.findById(bookingId);
-        if (!booking) {
-            return next(new ApiError(404, "Booking not found"));
-        }
+//         const booking = await Booking.findById(bookingId);
+//         if (!booking) {
+//             return next(new ApiError(404, "Booking not found"));
+//         }
 
-        if (!['completed', 'pending', 'failed'].includes(payment_status)) {
-            return next(new ApiError(400, "Invalid payment status"));
-        }
+//         if (!['completed', 'pending', 'failed'].includes(payment_status)) {
+//             return next(new ApiError(400, "Invalid payment status"));
+//         }
 
-        booking.payment_status = payment_status;
-        booking.transaction_id = transaction_id || booking.transaction_id;
-        booking.payment_method = payment_method || booking.payment_method;
+//         booking.payment_status = payment_status;
+//         booking.transaction_id = transaction_id || booking.transaction_id;
+//         booking.payment_method = payment_method || booking.payment_method;
 
-        await booking.save();
+//         await booking.save();
 
-        return res.status(200).json({
-            message: "Payment status updated successfully",
-            booking,
-        });
-    } catch (error) {
-        console.error("Error updating payment status:", error);
-        return next(new ApiError(500, "An error occurred while updating payment status"));
-    }
-};
-
-
-
-
+//         return res.status(200).json({
+//             message: "Payment status updated successfully",
+//             booking,
+//         });
+//     } catch (error) {
+//         console.error("Error updating payment status:", error);
+//         return next(new ApiError(500, "An error occurred while updating payment status"));
+//     }
+// };
 
 
 export const generateReceipt = async (req, res, next) => {
@@ -298,10 +294,6 @@ export const generateReceipt = async (req, res, next) => {
         return next(new ApiError(500, "An error occurred while generating the receipt"));
     }
 };
-
-
-
-
 
 export const createBookingForAnonymousUser = async (req, res, next) => {
     const {
@@ -380,24 +372,90 @@ export const createBookingForAnonymousUser = async (req, res, next) => {
     }
 };
 
+export const getAllAvailableBeds = async (req, res, next) => {
+    try {
+        // Fetch all rooms
+        const rooms = await Room.find();
 
-// export const getAllAnonymousBookings = async (req, res, next) => {
-//     try {
-//         // Find all bookings where user_details is populated (i.e., created by admin for an anonymous user)
-//         const bookings = await Booking.find({ 'user_details.name': { $exists: true } })
-//             .populate('room', 'room_number') // Populate the room data
-//             .sort({ booking_date: -1 }); // Sort by booking date in descending order
+        // Extract available beds
+        const availableBeds = rooms.flatMap((room) =>
+            room.beds
+                .filter((bed) => bed.status === 'available')
+                .map((bed) => ({
+                    room_number: room.room_number,
+                    bed_number: bed.bed_number,
+                    price_per_bed: bed.price_per_bed,
+                    type: room.type,
+                    features: room.features,
+                }))
+        );
 
-//         if (!bookings || bookings.length === 0) {
-//             return next(new ApiError(404, "No bookings found for anonymous users"));
-//         }
+        // Response with available beds
+        res.status(200).json({
+            message: 'Available beds fetched successfully',
+            total: availableBeds.length,
+            beds: availableBeds,
+        });
+    } catch (error) {
+        console.error("Error fetching available beds:", error);
+        return next(new ApiError(500, "An error occurred while fetching available beds"));
+    }
+};
 
-//         return res.status(200).json({
-//             message: "Anonymous user bookings retrieved successfully",
-//             bookings,
-//         });
-//     } catch (error) {
-//         console.error("Error fetching anonymous bookings:", error);
-//         return next(new ApiError(500, "An error occurred while retrieving the bookings"));
-//     }
-// };
+
+
+export const updatePaymentStatus = async (req, res, next) => {
+    const { bookingId } = req.params;
+    const { payment_status, transaction_id, payment_method } = req.body;
+
+    try {
+        // Check if the user is an admin
+        if (req.user.role !== 'admin') {
+            return next(new ApiError(403, "You are not authorized to update payment status"));
+        }
+
+        // Find the booking by its ID
+        const booking = await Booking.findById(bookingId).populate('room'); // Populate the room to access bed details
+        if (!booking) {
+            return next(new ApiError(404, "Booking not found"));
+        }
+
+        // Validate payment status
+        if (!['completed', 'pending', 'failed'].includes(payment_status)) {
+            return next(new ApiError(400, "Invalid payment status"));
+        }
+
+        // Update payment details
+        booking.payment_status = payment_status;
+        booking.transaction_id = transaction_id || booking.transaction_id;
+        booking.payment_method = payment_method || booking.payment_method;
+
+        // If payment is completed, update the bed status and booking status
+        if (payment_status === 'completed') {
+            const room = await Room.findById(booking.room);
+            const bed = room.beds.find((b) => b.bed_number === booking.bed_number);
+
+            if (bed) {
+                bed.status = 'occupied';
+                await room.save(); // Save the updated room document
+            } else {
+                return next(new ApiError(404, "Bed not found"));
+            }
+
+            // Update the booking status to "confirmed"
+            booking.status = 'confirmed';
+        }
+
+        // Save the booking with updated details
+        await booking.save();
+
+        return res.status(200).json({
+            message: "Payment status and booking status updated successfully",
+            booking,
+        });
+    } catch (error) {
+        console.error("Error updating payment status:", error);
+        return next(new ApiError(500, "An error occurred while updating payment status"));
+    }
+};
+
