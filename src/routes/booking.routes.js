@@ -1,5 +1,5 @@
 import express from 'express';
-import { bookBed, createBookingForAnonymousUser, generateReceipt, getAllAvailableBeds, getAllBookings, updateBookingStatus, updatePaymentStatus } from '../controllers/booking.controller.js';
+import { bookBed, createBookingForAnonymousUser, generateReceipt, getAllAvailableBeds, getAllBookings, updateBookingStatus,  getBookingsByStatus, updatePaymentStatus } from '../controllers/booking.controller.js';
 
 import { authorizeAdmin, verifyAccessToken } from "../middlewares/auth.middleware.js";
 
@@ -13,6 +13,8 @@ router.put('/booking/:bookingId/payment-status', verifyAccessToken, authorizeAdm
 router.get('/generate-receipt/:bookingId', verifyAccessToken, authorizeAdmin, generateReceipt);
 router.post('/admin/anonymous-booking', verifyAccessToken, authorizeAdmin, createBookingForAnonymousUser);
 router.get('/available-beds', getAllAvailableBeds);
+router.get('/status-bookings', verifyAccessToken, getBookingsByStatus);
+
 // router.get('/user-bookings/:userId', verifyAccessToken, getUserBookings);
 
 export default router;

@@ -459,3 +459,47 @@ export const updatePaymentStatus = async (req, res, next) => {
     }
 };
 
+export const getBookingsByStatus = async (req, res) => {
+    try {
+      const currentDate = new Date();
+      
+      // Get current bookings
+      const currentBookings = await Booking.find({
+        checkin_date: { $lte: currentDate },
+        checkout_date: { $gte: currentDate },
+        status: 'confirmed'
+      }).populate('room').populate('user');
+  
+      // Get upcoming bookings (next 7 days)
+      const upcomingDate = new Date(currentDate);
+      upcomingDate.setDate(upcomingDate.getDate() + 7);
+      
+      const upcomingBookings = await Booking.find({
+        checkin_date: { $gt: currentDate, $lte: upcomingDate },
+        status: 'confirmed'
+      }).populate('room').populate('user');
+  
+      // Get recent checkouts (last 7 days)
+      const pastDate = new Date(currentDate);
+      pastDate.setDate(pastDate.getDate() - 7);
+      
+      const recentCheckouts = await Booking.find({
+        checkout_date: { $gte: pastDate, $lt: currentDate },
+        status: 'confirmed'
+      }).populate('room').populate('user');
+  
+      res.status(200).json({
+        success: true,
+        data: {
+          currentBookings,
+          upcomingBookings,
+          recentCheckouts
+        }
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  };
