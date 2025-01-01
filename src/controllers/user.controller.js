@@ -137,8 +137,13 @@ export const deleteUser = async (req, res) => {
     const { id } = req.params;
 
     // Check if the user is trying to delete their own profile
-    if (req.user.id !== id) {
-        return res.status(403).json({ message: "You can only delete your own profile" });
+    // if (req.user.id !== id) {
+    //     return res.status(403).json({ message: "You can only delete your own profile" });
+    // }
+    if (role && ["staff", "admin"].includes(role)) {
+        return res
+            .status(403)
+            .json({ message: "Only an admin can delete staff " });
     }
 
     const user = await User.findByIdAndDelete(id);
